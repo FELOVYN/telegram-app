@@ -93,39 +93,40 @@
                 }
             };
             
+            // Указываем ваш Ngrok-URL (важно добавить /api/send_location в конец)
+            const serverUrl = 'https://5581-185-21-12-223.ngrok-free.app/api/send_location';
+            
             // Отправляем на сервер
-            fetch('/api/send_location', {
+            fetch(serverUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(data)
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    statusElement.textContent = "Геолокация успешно отправлена!";
-                    tg.showPopup({
-                        title: "Успех",
-                        message: "Ваше местоположение получено",
-                        buttons: [{ type: "close" }]
-                    });
-                } else {
-                    statusElement.textContent = "Ошибка: " + (data.message || 'Неизвестная ошибка');
-                    tg.showPopup({
-                        title: "Ошибка",
-                        message: "Не удалось отправить геолокацию",
-                        buttons: [{ type: "close" }]
-                    });
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
                 }
+                return response.json();
+            })
+            .then(data => {
+                statusElement.textContent = "Геолокация успешно отправлена!";
+                tg.showPopup({
+                    title: "Успех",
+                    message: "Ваше местоположение получено",
+                    buttons: [{ type: "close" }]
+                });
+                console.log("Server response:", data); // Для отладки
             })
             .catch(error => {
                 statusElement.textContent = "Ошибка при отправке: " + error.message;
                 tg.showPopup({
                     title: "Ошибка",
-                    message: "Ошибка при отправке данных на сервер",
+                    message: "Ошибка при отправке данных на сервер: " + error.message,
                     buttons: [{ type: "close" }]
                 });
+                console.error("Error:", error); // Для отладки
             });
         }
     </script>
