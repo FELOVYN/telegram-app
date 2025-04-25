@@ -35,18 +35,6 @@
             margin-top: 20px;
             color: #666;
         }
-        .alert {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #333;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            z-index: 1000;
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -54,80 +42,90 @@
         <button id="sendLocationBtn">Отправить геолокацию</button>
         <div id="status" class="status"></div>
     </div>
-    
-    <!-- Собственное всплывающее окно как fallback -->
-    <div id="customAlert" class="alert"></div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand();
-        
-        // Функция для показа сообщений (совместимая со всеми версиями)
-        function showAlert(message, isError = false) {
-            // Пробуем использовать нативный метод, если доступен
-            if (tg.showAlert) {
-                tg.showAlert(message);
-            } 
-            // Иначе используем кастомный alert
-            else {
-                const alertBox = document.getElementById('customAlert');
-                alertBox.textContent = message;
-                alertBox.style.backgroundColor = isError ? '#d32f2f' : '#388e3c';
-                alertBox.style.display = 'block';
-                setTimeout(() => {
-                    alertBox.style.display = 'none';
-                }, 3000);
-            }
-        }
+        tg.expand(); // Раскрываем WebApp на весь экран
         
         document.getElementById('sendLocationBtn').addEventListener('click', () => {
             const statusElement = document.getElementById('status');
             statusElement.textContent = "Запрашиваем геолокацию...";
             
+            // Запрашиваем геолокацию у пользователя
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
                         const { latitude, longitude } = position.coords;
                         statusElement.textContent = "Отправляем данные на сервер...";
+                        
+                        // Отправляем данные на сервер
                         sendLocationToServer(latitude, longitude);
                     },
                     (error) => {
-                        statusElement.textContent = "Ошибка: " + error.message;
-                        showAlert("Не удалось получить геолокацию: " + error.message, true);
+                        statusElement.textContent = "Ошибка при получении геолокации: " + error.message;
+                        tg.showPopup({
+                            title: "Ошибка",
+                            message: "Не удалось получить ваше местоположение: " + error.message,
+                            buttons: [{ type: "close" }]
+                        });
                     },
                     { enableHighAccuracy: true }
                 );
             } else {
-                statusElement.textContent = "Геолокация не поддерживается";
-                showAlert("Ваш браузер не поддерживает геолокацию", true);
+                statusElement.textContent = "Геолокация не поддерживается вашим браузером";
+                tg.showPopup({
+                    title: "Ошибка",
+                    message: "Ваш браузер не поддерживает геолокацию",
+                    buttons: [{ type: "close" }]
+                });
             }
         });
         
         function sendLocationToServer(latitude, longitude) {
             const statusElement = document.getElementById('status');
-            const serverUrl = 'https://5581-185-21-12-223.ngrok-free.app/api/send_location';
             
-            fetch(serverUrl, {
+            // Собираем данные для отправки
+            const data = {
+                initData: tg.initData, // Данные от Telegram для аутентификации
+                location: {
+                    latitude: latitude,
+                    longitude: longitude
+                }
+            };
+            
+            // Отправляем на сервер
+            fetch('/api/send_location', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    initData: tg.initData,
-                    location: { latitude, longitude }
-                })
+                body: JSON.stringify(data)
             })
-            .then(response => {
-                if (!response.ok) throw new Error('Ошибка сервера');
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                statusElement.textContent = "Геолокация отправлена!";
-                showAlert("Ваше местоположение получено!");
+                if (data.status === 'success') {
+                    statusElement.textContent = "Геолокация успешно отправлена!";
+                    tg.showPopup({
+                        title: "Успех",
+                        message: "Ваше местоположение получено",
+                        buttons: [{ type: "close" }]
+                    });
+                } else {
+                    statusElement.textContent = "Ошибка: " + (data.message || 'Неизвестная ошибка');
+                    tg.showPopup({
+                        title: "Ошибка",
+                        message: "Не удалось отправить геолокацию",
+                        buttons: [{ type: "close" }]
+                    });
+                }
             })
             .catch(error => {
-                statusElement.textContent = "Ошибка отправки";
-                showAlert("Ошибка при отправке данных: " + error.message, true);
+                statusElement.textContent = "Ошибка при отправке: " + error.message;
+                tg.showPopup({
+                    title: "Ошибка",
+                    message: "Ошибка при отправке данных на сервер",
+                    buttons: [{ type: "close" }]
+                });
             });
         }
     </script>
